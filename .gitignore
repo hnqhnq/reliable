@@ -1,0 +1,9 @@
+.venvs/
+.pip-cache/
+.cache/
+/data/
+/runs/
+tmp/
+__pycache__/
+*.pyc
+.nested-git/

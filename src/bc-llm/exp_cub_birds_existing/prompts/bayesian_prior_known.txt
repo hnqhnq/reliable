@@ -1,0 +1,39 @@
+We are fitting a concept bottleneck model for classifying the species of a bird based on the attributes of the bird in its image. The possible bird classes are: [[CLASS_OPTIONS]]. The goal is to come up with {num_meta_concepts} meta-concepts to extract from the images to maximize the accuracy of the concept bottleneck model. A meta-concept is a binary feature extractor defined by a yes/no question. We have {num_concepts_fixed} meta-concepts so far:
+{meta_concepts}
+
+We are planning to add one of the following candidate meta-concepts to the concept bottleneck model:
+{candidate_list}
+
+Assign a prior probability for each of the candidate meta-concepts. To help come up with a prior probability, we have used an LLM to summarize each image and fit a bag-of-words model on the summaries to predict the residuals. These are the top features in the residual model, in descending order of importance:
+
+{top_features_df}
+
+Note if two candidate meta-concepts are the same, they should be assigned the same prior probability.
+
+Summarize all the candidate meta-concepts with non-zero prior probabilities at the end with a valid JSON, formatted as follows:
+{
+    "candidate_priors": [
+        {
+            "candidate_id": <CANDIDATE_ID>,
+            "reasoning": <REASONING (optional)>,
+            "prior": <PRIOR_PROBABILITY>
+        },
+        ...
+    ]
+}
+Example:
+{
+    "candidate_priors": [
+        {
+            "candidate_id": 0,
+            "reasoning": "This candidate is very likely because...",
+            "prior": 0.4
+        },
+        {
+            "candidate_id": 1,
+            "reasoning": "This candidate is slightly less likely because...",
+            "prior": 0.3
+        },
+        ...
+    ]
+}
