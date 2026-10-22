@@ -18,6 +18,15 @@ class OpenAi(str, Enum):
     GPT4_O_MINI = "gpt-4o-mini"
     GPT4_O = "gpt-4o"
 
+class Qwen(str, Enum):
+    QWEN_3_7_FLASH = "qwen3.7-flash-2026-07-15"
+    QWEN_3_8_FLASH = "qwen3.8-flash"
+    QWEN_3_8_MAX = "qwen3.8-max"
+    QWEN_3_8_MAX_0902 = "qwen3.8-max-0902"
+
+class DeepSeek(str, Enum):
+    DEEPSEEK_FLASH = "deepseek-flash"
+
 class Cohere(str, Enum):
     COMMAND_R = "cohere-command-r"
     COMMAND = "cohere-command"
@@ -34,7 +43,7 @@ class Meta(str, Enum):
     LLAMA_3_2_11B = "us.meta.llama3-2-11b-instruct-v1:0"
 
 BedrockModels = Union[Cohere, Claude, Meta]
-Models = Union[VersaOpenAi, BedrockModels, OpenAi, Anthropic]
+Models = Union[VersaOpenAi, BedrockModels, OpenAi, Anthropic, Qwen, DeepSeek]
 
 class LLMModel(BaseModel):
     name: Models
@@ -50,11 +59,13 @@ BEDROCK_MAPPINGS = {
         Meta.LLAMA_3_3_70B: "us.meta.llama3-3-70b-instruct-v1:0",
         Meta.LLAMA_3_2_11B: "us.meta.llama3-2-11b-instruct-v1:0",
         }
-is_bedrock = lambda x: isinstance(x, BedrockModels)
+is_bedrock = lambda x: isinstance(x, (Cohere, Claude, Meta))
 is_meta = lambda x: isinstance(x, Meta)
 is_versa = lambda x: isinstance(x, VersaOpenAi)
 is_anthropic = lambda x: isinstance(x, Anthropic)
 is_openai = lambda x: isinstance(x, OpenAi)
+is_qwen = lambda x: isinstance(x, Qwen)
+is_deepseek = lambda x: isinstance(x, DeepSeek)
 
 def convert_to_llm_type(llm_type: str):
     if llm_type == "gpt-4o-mini":
@@ -67,5 +78,15 @@ def convert_to_llm_type(llm_type: str):
         return LLMModel(name=VersaOpenAi.GPT4_O_2024_08)
     elif llm_type == "versa-gpt-4o-2024-05-13":
         return LLMModel(name=VersaOpenAi.GPT4_O_2024_05)
+    elif llm_type == "qwen3.7-flash-2026-07-15":
+        return LLMModel(name=Qwen.QWEN_3_7_FLASH)
+    elif llm_type == "qwen3.8-flash":
+        return LLMModel(name=Qwen.QWEN_3_8_FLASH)
+    elif llm_type == "qwen3.8-max":
+        return LLMModel(name=Qwen.QWEN_3_8_MAX)
+    elif llm_type == "qwen3.8-max-0902":
+        return LLMModel(name=Qwen.QWEN_3_8_MAX_0902)
+    elif llm_type == "deepseek-flash":
+        return LLMModel(name=DeepSeek.DEEPSEEK_FLASH)
     else:
-        raise NotImplementedError("llm not found")
+        raise NotImplementedError(f"llm not found: {llm_type}")

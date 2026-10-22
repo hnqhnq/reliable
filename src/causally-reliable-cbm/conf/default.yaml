@@ -22,6 +22,8 @@ completion:
   cycles_allowed: True
   selection_bias: True
   external_answers: Null
+  graph_path: Null
+  predicted_graph_path: Null
 
 trainer:
   # limit_train_batches: 600
@@ -30,6 +32,7 @@ trainer:
   # gradient_clip_algorithm: norm
   monitor: "val_loss"
   patience: 20
+  resume_ckpt_path: Null
 
 seed: 42
 notes: null

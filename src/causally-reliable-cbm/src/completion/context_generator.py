@@ -5,11 +5,21 @@ from sentence_transformers import SentenceTransformer
 import requests
 from bs4 import BeautifulSoup
 import json
+import hashlib
 from tqdm import tqdm
 import time
 import os
 from duckduckgo_search import DDGS
 import re
+from urllib.parse import parse_qs, unquote, urlparse
+
+_DDG_CLIENT_SUPPORTED = None
+_DDG_HTML_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ),
+}
 
 PAPER_SCRAPER_PROMPT = """Your task is to create the most effective search query to find information that answers the user's question. \
 Your query will be used to search scientific articles from the web.\
@@ -46,7 +56,8 @@ class Context_generator:
                  n_documents_per_source=10,
                  context_length=10,
                  dataset=None,
-                 verbose=False):
+                 verbose=False,
+                 cache_file=None):
         
         self.llm = llm
         self.embedder = SentenceTransformer(embedder)
@@ -58,6 +69,17 @@ class Context_generator:
         self.n_documents_per_source = n_documents_per_source
         self.context_length = context_length
         self.dataset = dataset
+        self.cache_file = cache_file or os.environ.get("C2BM_RAG_CACHE_FILE")
+        self._context_cache = {}
+        if self.cache_file and os.path.exists(self.cache_file):
+            with open(self.cache_file, 'r', encoding='utf-8') as stream:
+                for line in stream:
+                    try:
+                        event = json.loads(line)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if event.get('cache_key') and event.get('context') is not None:
+                        self._context_cache[event['cache_key']] = event['context']
         if dataset in ['colormnist', 'celeba', 'celeba_unfair', 'sachs', 'sachs_ood']:
             self.source = 'local'
         self.verbose = verbose
@@ -102,7 +124,7 @@ class Context_generator:
             print('Scrpaing PubMed papers...')
             # we lmit the number of papers to 3 to avoid network errors
             url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={query}&retmax={3}&retmode=json"
-            response = requests.get(url)
+            response = requests.get(url, timeout=30)
             data = response.json()
             id_list = data['esearchresult']['idlist']
             print('PubMed URLs obtained!')
@@ -113,12 +135,17 @@ class Context_generator:
         papers = []
         for pubmed_id in tqdm(id_list):
             fetch_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={pubmed_id}&retmode=xml"
+            fetch_response = None
             for attempt in range(retries):
                 try:
-                    fetch_response = requests.get(fetch_url)
+                    fetch_response = requests.get(fetch_url, timeout=30)
+                    fetch_response.raise_for_status()
+                    break
                 except requests.RequestException as e:
                     print(f"Attempt {attempt + 1} failed: {e}")
                     time.sleep(sleep_time)
+            if fetch_response is None:
+                continue
             soup = BeautifulSoup(fetch_response.content, 'xml')
             # title = soup.find('ArticleTitle')
             abstract = soup.find('Abstract')
@@ -158,7 +185,8 @@ class Context_generator:
         return papers
 
     def extract_and_clean_content(self, url):
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         # Remove script and style elements
         for script_or_style in soup(['script', 'style']):
@@ -169,18 +197,89 @@ class Context_generator:
         text = text.strip()
         return text
 
+    def _ddgs_text_search(self, query):
+        global _DDG_CLIENT_SUPPORTED
+        if _DDG_CLIENT_SUPPORTED is False:
+            return None
+        try:
+            results = list(DDGS(timeout=20).text(
+                query,
+                max_results=self.n_documents_per_source,
+            ))
+        except Exception as error:
+            _DDG_CLIENT_SUPPORTED = False
+            if self.verbose:
+                print(
+                    f'DDGS client failed ({type(error).__name__}: {error}); '
+                    'using DuckDuckGo HTML fallback.'
+                )
+            return None
+        _DDG_CLIENT_SUPPORTED = True
+        return results
+
     def get_web_search_results(self, query):
         print('Scraping the web...')
-        results = DDGS().text(query, max_results=self.n_documents_per_source)
+        results = self._ddgs_text_search(query)
+        if results is None:
+            urls = self.get_web_search_urls_from_html(query)
+        else:
+            urls = [result['href'] for result in results if result.get('href')]
+            if not urls:
+                urls = self.get_web_search_urls_from_html(query)
+
         documents = []
-        for result in tqdm(results):
+        for url in tqdm(urls):
             try:
-                doc = self.extract_and_clean_content(result['href'])
+                doc = self.extract_and_clean_content(url)
                 documents.append(doc)
             except Exception as e:
                 if self.verbose:
                     print(f"An error occurred while fetching the document: {e}")
         return documents
+
+    def get_web_search_urls_from_html(self, query):
+        session = requests.Session()
+        session.headers.update(_DDG_HTML_HEADERS)
+        response = None
+        for attempt in (
+            lambda: session.post(
+                'https://html.duckduckgo.com/html/',
+                data={'q': query, 'b': '', 'kl': 'wt-wt'},
+                timeout=30,
+            ),
+            lambda: session.get(
+                'https://html.duckduckgo.com/html/',
+                params={'q': query},
+                timeout=30,
+            ),
+        ):
+            try:
+                response = attempt()
+                response.raise_for_status()
+                break
+            except requests.RequestException as error:
+                if self.verbose:
+                    print(f'DuckDuckGo HTML fallback attempt failed: {error}')
+                response = None
+        if response is None:
+            return []
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        urls = []
+        for link in soup.select('a.result__a'):
+            href = link.get('href')
+            if not href:
+                continue
+            parsed = urlparse(href)
+            redirect_target = parse_qs(parsed.query).get('uddg')
+            url = unquote(redirect_target[0]) if redirect_target else href
+            if url.startswith('http') and url not in urls:
+                urls.append(url)
+            if len(urls) >= self.n_documents_per_source:
+                break
+        if self.verbose:
+            print(f'DuckDuckGo HTML fallback returned {len(urls)} URLs.')
+        return urls
 
     def embedd_and_rank_text(self, query, chunks, model):
         query_embedding = model.encode(query, convert_to_tensor=True) 
@@ -220,6 +319,24 @@ class Context_generator:
         return cleaned_text
 
     def invoke(self, query):
+        cache_payload = json.dumps(
+            {
+                'query': query,
+                'query_strategy': self.query_strategy,
+                'chunking_strategy': self.chunking_strategy,
+                'source': self.source,
+                'dataset': self.dataset,
+                'context_length': self.context_length,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        cache_key = hashlib.sha256(cache_payload.encode('utf-8')).hexdigest()
+        if cache_key in self._context_cache:
+            if self.verbose:
+                print('RAG context cache hit:', cache_key)
+            return self._context_cache[cache_key]
+
         # Whether to use the user query or a different strategy (e.g. query expansion)
         if self.query_strategy == 'standard':
             query_to_embedd = query
@@ -309,4 +426,13 @@ class Context_generator:
 
             # The sorted chunks are transformed into a single string
             context = '\n'.join([f'Background Information {i+1}: '+chunk for i, chunk in enumerate(context)])
+        if self.cache_file:
+            cache_dir = os.path.dirname(os.path.abspath(self.cache_file))
+            os.makedirs(cache_dir, exist_ok=True)
+            event = {'cache_key': cache_key, 'query': query, 'context': context}
+            with open(self.cache_file, 'a', encoding='utf-8') as stream:
+                stream.write(json.dumps(event, ensure_ascii=False) + '\n')
+                stream.flush()
+                os.fsync(stream.fileno())
+            self._context_cache[cache_key] = context
         return context

@@ -15,3 +15,8 @@ class ErrorCallbackHandler(BaseCallbackHandler):
         self.logger.error(f"Error type: {type(error).__name__}")
         self.logger.error(f"Additional context: {kwargs}")
 
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        """Persist token metadata when the provider/LangChain exposes it."""
+        llm_output = getattr(response, "llm_output", None)
+        if llm_output:
+            self.logger.info("LLM usage metadata: %s", llm_output)

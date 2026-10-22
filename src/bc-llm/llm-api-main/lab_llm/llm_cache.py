@@ -32,7 +32,7 @@ class LLMCache:
                 })
         cache_df = pd.DataFrame({'prompt': batch_prompts})
         cache_df['prompt_hash'] = cache_df.prompt.apply(lambda c: self.compute_hash(json.dumps(c)))
-        cache_df['call_params_hash'] = model_type.name.value #self.compute_hash(call_params)
+        cache_df['call_params_hash'] = self.compute_hash(call_params)
         query = """
             WITH ranked_outputs AS (
                 SELECT 
@@ -89,7 +89,7 @@ class LLMCache:
         cache_df = pd.DataFrame({'prompt': batch_prompts})
         cache_df['prompt_hash'] = cache_df.prompt.apply(lambda c: self.compute_hash(json.dumps(c)))
         cache_df['llm_output'] = llm_outputs
-        cache_df['call_params_hash'] = model_type.name.value #call_params_hash
+        cache_df['call_params_hash'] = call_params_hash
         cache_df.drop('prompt', axis=1)
         db.sql("INSERT INTO llm_cache (prompt_hash, llm_output, call_params_hash) SELECT prompt_hash, llm_output, call_params_hash FROM cache_df")
 
@@ -126,4 +126,3 @@ class LLMCache:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-

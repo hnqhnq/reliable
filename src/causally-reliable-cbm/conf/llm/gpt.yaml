@@ -1,3 +1,11 @@
+provider: openai
 name: gpt-4o
+base_url: null
+api_key_env: OPENAI_API_KEY
 temperature: 0
-max_tries: 1
+max_tries: 10
+max_retries: 2
+max_tokens: 64
+timeout: 120
+thinking: false
+log_file: ${oc.env:C2BM_LLM_LOG_FILE,null}

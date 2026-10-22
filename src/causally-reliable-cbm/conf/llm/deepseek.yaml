@@ -1,0 +1,11 @@
+provider: deepseek
+name: ${oc.env:DEEPSEEK_MODEL,deepseek-flash}
+base_url: ${oc.env:DEEPSEEK_BASE_URL,https://api.deepseek.com}
+api_key_env: DEEPSEEK_API_KEY
+temperature: 0
+max_tries: 10
+max_retries: 2
+max_tokens: 512
+timeout: 120
+thinking: false
+log_file: ${oc.env:C2BM_LLM_LOG_FILE,null}

@@ -1,0 +1,11 @@
+provider: qwen
+name: ${oc.env:QWEN_MODEL,qwen3.7-flash-2026-07-15}
+base_url: ${oc.env:QWEN_BASE_URL,https://dashscope.aliyuncs.com/compatible-mode/v1}
+api_key_env: DASHSCOPE_API_KEY
+temperature: 0
+max_tries: 10
+max_retries: 2
+max_tokens: 512
+timeout: 120
+thinking: false
+log_file: ${oc.env:C2BM_LLM_LOG_FILE,null}

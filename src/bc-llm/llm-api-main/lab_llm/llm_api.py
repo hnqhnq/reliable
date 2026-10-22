@@ -74,6 +74,8 @@ class LLMApi(LLM):
         print("self.model_type", self.model_type.name)
         if constants.is_openai(self.model_type.name):
             access_token = os.getenv("OPENAI_ACCESS_TOKEN")
+            if not access_token:
+                raise RuntimeError("Missing OPENAI_ACCESS_TOKEN in /home/src/Reliable/.env.llm")
             return ChatOpenAI(
                     api_key=access_token, 
                     model_name=self.model_type.name,
@@ -83,6 +85,51 @@ class LLMApi(LLM):
                     timeout=self.timeout,
                     rate_limiter=rate_limiter,
                     callbacks=[self.error_handler]
+                    )
+        elif constants.is_qwen(self.model_type.name):
+            access_token = os.getenv("DASHSCOPE_API_KEY")
+            if not access_token:
+                raise RuntimeError("Missing DASHSCOPE_API_KEY in /home/src/Reliable/.env.llm")
+            return ChatOpenAI(
+                    api_key=access_token,
+                    base_url=os.getenv(
+                        "QWEN_BASE_URL",
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    ),
+                    model=self.model_type.name.value,
+                    max_completion_tokens=max_new_tokens,
+                    temperature=temperature,
+                    timeout=self.timeout,
+                    max_retries=int(os.getenv("BC_LLM_MAX_RETRIES", "2")),
+                    rate_limiter=rate_limiter,
+                    callbacks=[self.error_handler],
+                    extra_body={
+                        "enable_thinking": os.getenv(
+                            "QWEN_ENABLE_THINKING", "false"
+                        ).lower() == "true"
+                    },
+                    )
+        elif constants.is_deepseek(self.model_type.name):
+            access_token = os.getenv("DEEPSEEK_API_KEY")
+            if not access_token:
+                raise RuntimeError("Missing DEEPSEEK_API_KEY in /home/src/Reliable/.env.llm")
+            return ChatOpenAI(
+                    api_key=access_token,
+                    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                    model=self.model_type.name.value,
+                    max_completion_tokens=max_new_tokens,
+                    temperature=temperature,
+                    timeout=self.timeout,
+                    max_retries=int(os.getenv("BC_LLM_MAX_RETRIES", "2")),
+                    rate_limiter=rate_limiter,
+                    callbacks=[self.error_handler],
+                    extra_body={
+                        "thinking": {
+                            "type": "enabled"
+                            if os.getenv("DEEPSEEK_ENABLE_THINKING", "false").lower() == "true"
+                            else "disabled"
+                        }
+                    },
                     )
         elif constants.is_anthropic(self.model_type.name):
             access_token = os.getenv("ANTHROPIC_ACCESS_KEY")
@@ -124,6 +171,24 @@ class LLMApi(LLM):
                     callbacks=[self.error_handler]
                     )
 
+        raise NotImplementedError(f"Unsupported model type: {self.model_type.name}")
+
+    def _with_structured_output(self, llm, response_model: BaseModel):
+        """Select a structured-output mode supported by each compatible API."""
+        method_override = os.getenv("BC_LLM_STRUCTURED_METHOD")
+        if method_override:
+            method = method_override
+        elif constants.is_deepseek(self.model_type.name):
+            method = "json_mode"
+        else:
+            method = "json_schema"
+        self.logging.info(
+            "Structured output model=%s method=%s",
+            self.model_type.name.value,
+            method,
+        )
+        return llm.with_structured_output(response_model, method=method)
+
     # Note: if passing in an image here the prompt should contain the base64 encoded image.
     # see _encode_images for an example
     def get_output(
@@ -154,7 +219,7 @@ class LLMApi(LLM):
                 1/0
             llm = self.get_client(max_new_tokens, temperature)
             if (response_model is not None) and (not constants.is_meta(self.model_type.name)):
-                llm = llm.with_structured_output(response_model)
+                llm = self._with_structured_output(llm, response_model)
             messages = [
                      SystemMessage(content="You are a helpful assistant"),
                      HumanMessage(content=prompt)
@@ -191,7 +256,7 @@ class LLMApi(LLM):
             ) -> Optional[List[str] | List[BaseModel]]:
         llm = self.get_client(max_new_tokens, temperature, requests_per_second)
         if (response_model is not None) and (not constants.is_meta(self.model_type.name)):
-            llm = llm.with_structured_output(response_model)
+            llm = self._with_structured_output(llm, response_model)
         
         if is_image:
             # the collate_fn is used here because passing in the full payload with the base encoded image causing

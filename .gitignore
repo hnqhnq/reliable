@@ -7,3 +7,4 @@ tmp/
 __pycache__/
 *.pyc
 .nested-git/
+.env.llm

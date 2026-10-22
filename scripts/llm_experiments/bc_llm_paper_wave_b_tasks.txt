@@ -1,0 +1,12 @@
+# Scheme B: 10 representative CUB family tasks (paper K/T, 50/50 split).
+# One task per line; lines starting with # are ignored.
+class_18_19
+class_34_35
+class_47_48
+class_1_2_3
+class_79_80_81_82_83
+class_37_38_39_40_41_42_43
+class_59_60_61_62_63_64_65_66
+class_141_142_143_144_145_146_147
+class_187_188_189_190_191_192
+class_113_114_115_116_117_118_119_120_121_122_123_124_125_126_127_128_129_130_131_132_133

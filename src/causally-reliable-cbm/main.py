@@ -34,6 +34,22 @@ from src.utils import finetune_model
 
 # Suppress specific warning
 warnings.filterwarnings("ignore", message="When grouping with a length-1 list-like")
+
+
+def atomic_pickle_dump(value, destination_path):
+    """Write a pickle without exposing a partially written checkpoint."""
+    destination_path = os.path.abspath(destination_path)
+    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+    temporary_path = f"{destination_path}.tmp.{os.getpid()}"
+    try:
+        with open(temporary_path, 'wb') as f:
+            pickle.dump(value, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary_path, destination_path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
     
 def seed_everything(seed: int):
     print(f"Seed set to {seed}")
@@ -49,7 +65,7 @@ def main(cfg: DictConfig) -> None:
     # various preliminaries, it set the seed for reproducibility
     torch.set_num_threads(cfg.get("num_threads", 1))
     seed_everything(cfg.get("seed"))
-    os.mkdir('results')
+    os.makedirs('results', exist_ok=True)
     with open_dict(cfg): cfg.update(device="cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {cfg.device} device")
 
@@ -61,15 +77,33 @@ def main(cfg: DictConfig) -> None:
     dataset, true_graph, dataset_directory = get_dataset(cfg)
 
     # get the causal graph
+    configured_graph_path = cfg.completion.get('graph_path', None)
+    graph_path = (
+        os.path.abspath(configured_graph_path)
+        if configured_graph_path
+        else os.path.join(dataset_directory, "graph.pkl")
+    )
     if cfg.dataset.load_true_graph:
         graph = true_graph
     else:
         if cfg.dataset.load_graph:
-            with open(os.path.join(dataset_directory, "graph.pkl"), 'rb') as f:
+            with open(graph_path, 'rb') as f:
                 graph = pickle.load(f)
         else:
-            # estimate causal graph with causal structural learning algorithms
-            predicted_graph = causal_discovery(cfg, dataset, true_graph)
+            # Optionally freeze the causal-discovery output so several LLMs are
+            # compared on exactly the same incomplete graph.
+            predicted_graph_path = cfg.completion.get('predicted_graph_path', None)
+            if predicted_graph_path:
+                predicted_graph_path = os.path.abspath(predicted_graph_path)
+            if predicted_graph_path and os.path.exists(predicted_graph_path):
+                with open(predicted_graph_path, 'rb') as f:
+                    predicted_graph = pickle.load(f)
+                print('Loaded shared predicted graph:', predicted_graph_path)
+            else:
+                # estimate causal graph with causal structural learning algorithms
+                predicted_graph = causal_discovery(cfg, dataset, true_graph)
+                if predicted_graph_path:
+                    atomic_pickle_dump(predicted_graph, predicted_graph_path)
             if true_graph is not None:
                 hamming = hamming_distance(true_graph, predicted_graph)
                 print('(after CD) structural hamming distance: ', hamming)    
@@ -81,9 +115,9 @@ def main(cfg: DictConfig) -> None:
                 print('(after LLM + RAG) structural hamming distance: ', hamming)
             graph = completed_graph
 
-            # save graph
-            with open(os.path.join(dataset_directory, "graph.pkl"), 'wb') as f:
-                pickle.dump(graph, f)
+            # A killed process must not leave a partial pickle that a resumed
+            # run mistakes for a completed graph.
+            atomic_pickle_dump(graph, graph_path)
 
     # fix the graph
     # (part 1): remove bidirected and undirected edges + add virtual nodes
@@ -125,11 +159,17 @@ def main(cfg: DictConfig) -> None:
                                  num_workers=cfg.dataset.num_workers)
     
     engine = instantiate(cfg.engine)
+    trainer = None
     try:
         trainer = Trainer(cfg)
         trainer.logger.log_hyperparams(parse_hyperparams(cfg))
         # ---- train
-        trainer.fit(engine, train_dataloader, val_dataloader)
+        trainer.fit(
+            engine,
+            train_dataloader,
+            val_dataloader,
+            ckpt_path=cfg.trainer.get('resume_ckpt_path', None),
+        )
         # ---- finetune the encoder (eventually)
         if cfg.dataset.loader.ftune_size > 0: 
             trainer, engine = finetune_model(cfg, engine, dataset)
@@ -137,7 +177,7 @@ def main(cfg: DictConfig) -> None:
         trainer.test(engine, test_dataloader, ckpt_path='best')
         trainer.logger.finalize("success")
     finally:
-        if isinstance(trainer.logger, WandbLogger):
+        if trainer is not None and isinstance(trainer.logger, WandbLogger):
             trainer.logger.experiment.finish()
     ############################################################################################
 

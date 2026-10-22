@@ -9,7 +9,19 @@ def complete_graph_with_llm(cfg, predicted_graph, dataset_name):
     if cfg.llm is not None:
         # get_llm_access()
         # llm_model, llm_tokenizer = get_pretrained_llm(cfg.llm)
-        llm_model = llm_client(LLM=cfg.llm.get('name'), temperature=cfg.llm.get('temperature'), max_tries=cfg.llm.get('max_tries'))
+        llm_model = llm_client(
+            LLM=cfg.llm.get('name'),
+            temperature=cfg.llm.get('temperature', 0),
+            max_tries=cfg.llm.get('max_tries', 1),
+            provider=cfg.llm.get('provider'),
+            base_url=cfg.llm.get('base_url'),
+            api_key_env=cfg.llm.get('api_key_env'),
+            max_tokens=cfg.llm.get('max_tokens', 64),
+            max_retries=cfg.llm.get('max_retries', 2),
+            timeout=cfg.llm.get('timeout', 120),
+            thinking=cfg.llm.get('thinking', False),
+            log_file=cfg.llm.get('log_file'),
+        )
         if cfg.rag is not None:
             rag_model = Context_generator(llm=llm_model, 
                                           embedder=cfg.rag.get('embedder'),
@@ -19,7 +31,8 @@ def complete_graph_with_llm(cfg, predicted_graph, dataset_name):
                                           n_documents_per_source=cfg.rag.get('n_documents_per_source'),
                                           context_length=cfg.rag.get('context_length'),
                                           dataset=dataset_name,
-                                          verbose = cfg.rag.get('verbose'))
+                                          verbose=cfg.rag.get('verbose'),
+                                          cache_file=cfg.rag.get('cache_file'))
         else:
             rag_model = None
         node_label_description = cfg.dataset.get('label_descriptions', None)

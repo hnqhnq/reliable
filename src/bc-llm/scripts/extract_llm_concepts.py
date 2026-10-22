@@ -139,8 +139,8 @@ def main(args):
         llm_output_strs = [""] * len(missing_idxs)
         for llm_output_group, idxs in zip(grouped_llm_outputs, obs_group_idxs):
             if llm_output_group is not None:
-                for idx, keyphrases in enumerate(llm_output.keyphrases[:len(idxs)]):
-                    llm_output_strs[idxs[j]] = keyphrases
+                for idx, keyphrases in enumerate(llm_output_group.keyphrases[:len(idxs)]):
+                    llm_output_strs[idxs[idx]] = keyphrases
             else:
                 logging.info(f"warning: llm output was missing for idxs {idxs}")
     else:
@@ -173,11 +173,18 @@ def main(args):
         llm_reasoning_strs = [""] * len(missing_idxs)
         for grp_id in np.unique(group_ids):
             match_idxs = np.where(group_ids == grp_id)[0]
-            grp_llm_output = ','.join(
-                [",".join(llm_outputs[match_idx].keyphrases) for match_idx in match_idxs]
-            )
-            llm_output_strs[grp_id] = grp_llm_output
-            llm_reasoning_strs[grp_id] = llm_outputs[match_idxs[0]].reasoning
+            parts = []
+            for match_idx in match_idxs:
+                out = llm_outputs[match_idx]
+                if out is None or not getattr(out, "keyphrases", None):
+                    logging.info("warning: missing llm output for observation idx %s", match_idx)
+                    parts.append("")
+                else:
+                    parts.append(",".join(out.keyphrases))
+            llm_output_strs[grp_id] = ",".join(parts)
+            first = llm_outputs[match_idxs[0]]
+            if first is not None:
+                llm_reasoning_strs[grp_id] = first.reasoning
     
     data_df["llm_output"].iloc[missing_idxs] = llm_output_strs
     data_df["llm_reasoning"].iloc[missing_idxs] = llm_reasoning_strs

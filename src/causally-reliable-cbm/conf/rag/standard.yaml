@@ -5,3 +5,4 @@ source: custom
 n_documents_per_source: 10
 context_length: 5
 verbose: true
+cache_file: ${oc.env:C2BM_RAG_CACHE_FILE,null}
