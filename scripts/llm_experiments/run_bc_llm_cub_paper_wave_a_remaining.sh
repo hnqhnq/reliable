@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Scheme A: run all 34 tasks, skipping any task already SUCCEEDED under cub_paper_qwen.
+# Scheme A: run all 34 tasks under cub_paper_qwen, skip tasks that already have results.csv.
 
 set -Eeuo pipefail
 
-export BC_LLM_PAPER_REMAINING_ONLY=1
 ROOT_DIR="/home/src/Reliable"
 SCRIPT_DIR="$ROOT_DIR/scripts/llm_experiments"
 WAVE_ROOT="$ROOT_DIR/runs/bc-llm/cub_paper_qwen"
 TASK_FILE="$SCRIPT_DIR/bc_llm_paper_all_tasks.txt"
 
-mkdir -p "$WAVE_ROOT"
+mkdir -p "$WAVE_ROOT/tasks" "$WAVE_ROOT/aggregate"
+date --iso-8601=seconds > "$WAVE_ROOT/wave_a_started_at.txt"
+
 exec 9>"$WAVE_ROOT/run.lock"
 if ! flock -n 9; then
     echo "Paper wave job is already running." >&2
@@ -19,8 +20,13 @@ fi
 printf '%s\n' "$$" > "$WAVE_ROOT/worker.pid"
 printf '%s\n' "RUNNING" > "$WAVE_ROOT/status.txt"
 
+log() {
+    echo "$(date --iso-8601=seconds) $*" >> "$WAVE_ROOT/pipeline.log"
+}
+
 on_exit() {
     local exit_code=$?
+    date --iso-8601=seconds > "$WAVE_ROOT/wave_a_finished_at.txt"
     "$ROOT_DIR/.venvs/bc-llm/bin/python" "$SCRIPT_DIR/summarize_bc_llm_paper_wave.py" >> "$WAVE_ROOT/pipeline.log" 2>&1 || true
     if [[ "$exit_code" -eq 0 ]]; then
         printf '%s\n' "SUCCEEDED" > "$WAVE_ROOT/status.txt"
@@ -31,13 +37,30 @@ on_exit() {
 trap on_exit EXIT
 
 mapfile -t TASKS < <(grep -v '^#' "$TASK_FILE" | grep -v '^[[:space:]]*$' || true)
+if [[ "${#TASKS[@]}" -eq 0 ]]; then
+    echo "No tasks in $TASK_FILE" >&2
+    exit 2
+fi
+
+wave_failures=0
 for task in "${TASKS[@]}"; do
-    if [[ "$(cat "$WAVE_ROOT/tasks/$task/status.txt" 2>/dev/null || true)" == "SUCCEEDED" ]]; then
-        echo "$(date --iso-8601=seconds) SKIP $task" >> "$WAVE_ROOT/pipeline.log"
+    if [[ -s "$WAVE_ROOT/tasks/$task/results.csv" ]]; then
+        log "SKIP $task (results.csv present)"
         continue
     fi
-    echo "$(date --iso-8601=seconds) START $task" >> "$WAVE_ROOT/pipeline.log"
-    "$SCRIPT_DIR/run_bc_llm_cub_paper_task.sh" "$task" >> "$WAVE_ROOT/pipeline.log" 2>&1
-    echo "$(date --iso-8601=seconds) DONE $task" >> "$WAVE_ROOT/pipeline.log"
+    log "WAVE_A START $task"
+    if ! "$SCRIPT_DIR/run_bc_llm_cub_paper_task.sh" "$task" >> "$WAVE_ROOT/pipeline.log" 2>&1; then
+        log "WAVE_A FAILED $task"
+        wave_failures=$((wave_failures + 1))
+        "$ROOT_DIR/.venvs/bc-llm/bin/python" "$SCRIPT_DIR/summarize_bc_llm_paper_wave.py" >> "$WAVE_ROOT/pipeline.log" 2>&1 || true
+        continue
+    fi
+    log "WAVE_A DONE $task"
     "$ROOT_DIR/.venvs/bc-llm/bin/python" "$SCRIPT_DIR/summarize_bc_llm_paper_wave.py" >> "$WAVE_ROOT/pipeline.log" 2>&1 || true
 done
+
+if [[ "$wave_failures" -gt 0 ]]; then
+    log "WAVE_A_COMPLETE_WITH_FAILURES count=$wave_failures"
+    exit 1
+fi
+log "WAVE_A_COMPLETE"

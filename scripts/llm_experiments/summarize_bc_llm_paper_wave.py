@@ -76,7 +76,11 @@ def main() -> int:
     agg_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(agg_dir / "tasks_status.csv", index=False)
 
-    succeeded_b = df[(df["wave_b"]) & (df["status"] == "SUCCEEDED")]
+    succeeded_b = df[
+        (df["wave_b"])
+        & (df["status"] == "SUCCEEDED")
+        & df["acc"].notna()
+    ]
     result_files = [
         str(WAVE_ROOT / "tasks" / t / "results.csv")
         for t in succeeded_b["task"]

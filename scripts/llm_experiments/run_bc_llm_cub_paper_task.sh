@@ -59,8 +59,9 @@ mkdir -p "$RUN_DIR" "$ROOT_DIR/.cache/matplotlib" "$ROOT_DIR/.cache/huggingface"
     echo "llm_extraction=${QWEN_EXTRACTION_MODEL:-qwen3.7-flash-2026-07-15}"
 } > "$RUN_DIR/paper_config.txt"
 
-if [[ "$(cat "$RUN_DIR/status.txt" 2>/dev/null || true)" == "SUCCEEDED" ]]; then
-    echo "Already completed: $RUN_DIR"
+if [[ -s "$RUN_DIR/results.csv" ]]; then
+    echo "Already completed: $RUN_DIR (results.csv present)"
+    printf '%s\n' "SUCCEEDED" > "$RUN_DIR/status.txt"
     exit 0
 fi
 
@@ -78,7 +79,7 @@ on_exit() {
     local exit_code=$?
     printf '%s\n' "$exit_code" > "$RUN_DIR/exit_code"
     date --iso-8601=seconds > "$RUN_DIR/finished_at.txt"
-    if [[ "$exit_code" -eq 0 ]]; then
+    if [[ "$exit_code" -eq 0 && -s "$RUN_DIR/results.csv" ]]; then
         printf '%s\n' "SUCCEEDED" > "$RUN_DIR/status.txt"
     else
         printf '%s\n' "FAILED" > "$RUN_DIR/status.txt"

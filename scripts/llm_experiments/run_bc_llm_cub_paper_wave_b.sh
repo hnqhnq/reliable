@@ -46,8 +46,8 @@ fi
 wave_failures=0
 for task in "${TASKS[@]}"; do
     if [[ "$REMAINING_ONLY" == "1" ]]; then
-        if [[ "$(cat "$WAVE_ROOT/tasks/$task/status.txt" 2>/dev/null || true)" == "SUCCEEDED" ]]; then
-            log "SKIP $task (already SUCCEEDED)"
+        if [[ -s "$WAVE_ROOT/tasks/$task/results.csv" ]]; then
+            log "SKIP $task (results.csv present)"
             continue
         fi
     fi
