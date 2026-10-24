@@ -151,4 +151,11 @@ tail -f runs/bc-llm/cub_paper_qwen/pipeline.log
 前台调试时可运行 `./scripts/llm_experiments/run_bc_llm_cub_paper_wave_a_remaining.sh`。
 云服务器迁移与 24 任务清单见 `report/20261022实验复现与后续研究设计.md` **§8**。
 
+**`runs/` 不要进 Git**（体积大、DuckDB 缓存）。同步方案 B 产物到云：
+
+```bash
+CLOUD_SSH='user@host' ./scripts/llm_experiments/sync_cub_paper_runs_to_cloud.sh
+# 或 ./scripts/llm_experiments/pack_cub_paper_runs_for_cloud.sh 后 scp tar 包
+```
+
 任务列表：`bc_llm_paper_wave_b_tasks.txt`（10）、`bc_llm_paper_all_tasks.txt`（34）。
