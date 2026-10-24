@@ -13,6 +13,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE" >&2
     exit 2
 fi
+"$ROOT_DIR/scripts/llm_experiments/check_cub_paper_runs_ready.sh" || exit 2
 if [[ -f "$WAVE_ROOT/worker.pid" ]] && kill -0 "$(cat "$WAVE_ROOT/worker.pid")" 2>/dev/null; then
     echo "Already running: PID $(cat "$WAVE_ROOT/worker.pid")"
     exit 0
