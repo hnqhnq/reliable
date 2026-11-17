@@ -1,0 +1,29 @@
+# 上传到云 AutoDL：/root/autodl-tmp/projects/reliable/tmp_doc/
+
+生成时间：2026-11-17（pack_staging_to_tmp_doc.sh）
+
+## 请上传的文件（2 个必传）
+
+| 本地路径 | 大小（约） | 说明 |
+|----------|------------|------|
+| tmp_doc/reliable_cub_paper_qwen_20261117T185012.tar.gz | 33 MB | 方案 B：10×results.csv + api_cache.duckdb（已去掉 *.log） |
+| tmp_doc/upload_CUB_200_2011.tar.gz | 1.1 GB | CUB 真实数据（非 symlink） |
+
+同目录下的 `*_LATEST.tar.gz` 是指向上述文件的符号链接，**上传时以带时间戳的文件名为准即可**（云端解压脚本匹配 `reliable_cub_paper_qwen_*.tar.gz`）。
+
+## 未打包（可选）
+
+- **upload_bc_llm_venv**：本机 `.venvs/bc-llm` 约 **6.1 GB**，默认未打。云上可用 `environments/bc-llm.freeze.txt` 安装。
+  若必须从本机传：`PACK_INCLUDE_VENV=1 ./scripts/llm_experiments/pack_staging_to_tmp_doc.sh`（耗时、体积大）
+- **`.env.llm`**：清单写云上已有，勿把密钥打进 tar。
+
+## 云上解压
+
+```bash
+cd /home/src/Reliable
+export STAGING_DIR=/root/autodl-tmp/projects/reliable/tmp_doc
+./scripts/llm_experiments/unpack_staging_from_tmp_doc.sh --dry-run
+./scripts/llm_experiments/unpack_staging_from_tmp_doc.sh
+```
+
+详情见：tmp_doc/云服务器续跑方案A-环境检查与本地上传清单.md

@@ -4,6 +4,10 @@
 /data/
 /runs/
 tmp/
+# Local cloud staging archives (copy to server manually)
+tmp_doc/*.tar.gz
+tmp_doc/*_LATEST.tar.gz
+tmp_doc/STAGING_MANIFEST_*.txt
 __pycache__/
 *.pyc
 .nested-git/
