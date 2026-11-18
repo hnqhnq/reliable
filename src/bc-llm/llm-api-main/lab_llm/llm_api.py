@@ -57,10 +57,15 @@ class LLMApi(LLM):
         self.error_handler = error_handler
     
     def _serialize_llm_response(self, llm_response, response_model: BaseModel=None):
+        if isinstance(llm_response, BaseException):
+            raise TypeError(f"LLM batch returned exception: {llm_response}")
         if response_model is not None:
-            return llm_response.model_dump_json()
-        else:
-            return llm_response.content
+            if isinstance(llm_response, BaseModel):
+                return llm_response.model_dump_json()
+            if isinstance(llm_response, dict):
+                return response_model.model_validate(llm_response).model_dump_json()
+            raise TypeError(f"Unexpected structured response type: {type(llm_response)}")
+        return llm_response.content
 
     def get_client(self, max_new_tokens=4000, temperature=0, requests_per_second=None):
         if requests_per_second:
@@ -350,15 +355,18 @@ class LLMApi(LLM):
         batch_results_strs = [""] * len(prompts_to_run)
         for i, (response, prompt) in enumerate(zip(batch_results, prompts_to_run)):
             try:
-                batch_results_strs[i] = self._serialize_llm_response(response, response_model=response_model)
-
+                serialized = self._serialize_llm_response(response, response_model=response_model)
+                if not serialized or not str(serialized).strip():
+                    self.logging.info("run_batch: empty serialization for prompt index %s", i)
+                    continue
+                batch_results_strs[i] = serialized
                 self.cache.save_response(
-                    prompt, 
-                    batch_results_strs[i], 
-                    self.model_type, 
-                    self.seed, 
-                    max_new_tokens, 
-                    temperature
+                    prompt,
+                    batch_results_strs[i],
+                    self.model_type,
+                    self.seed,
+                    max_new_tokens,
+                    temperature,
                 )
             except Exception as e:
                 self.logging.info(f"run_batch had an exception {e} {response}")

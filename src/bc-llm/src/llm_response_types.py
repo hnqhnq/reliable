@@ -2,11 +2,18 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 class ProtoConceptExtract(BaseModel):
-    reasoning: Optional[str] = Field(description="string describing reasoning for which keyphrases to include")
+    # Qwen json_schema often returns only keyphrases; default=None keeps validation passing.
+    reasoning: Optional[str] = Field(
+        default=None,
+        description="string describing reasoning for which keyphrases to include",
+    )
     keyphrases: List[str] = Field(description="string of keyphrases that are highly related to each other")
 
 class ProtoConceptExtractGrouped(BaseModel):
-    reasoning: Optional[str] = Field(description="string describing reasoning for which keyphrases to include")
+    reasoning: Optional[str] = Field(
+        default=None,
+        description="string describing reasoning for which keyphrases to include",
+    )
     keyphrases: List[str] = Field(description="string of keyphrases for each bird")
 
 class PriorCandidate(BaseModel):

@@ -91,6 +91,11 @@ export MPLCONFIGDIR="$ROOT_DIR/.cache/matplotlib"
 export HF_HOME="$ROOT_DIR/.cache/huggingface"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export PYTHONUNBUFFERED=1
+# AutoDL/Cursor sometimes injects an invalid OMP_NUM_THREADS (libgomp warning).
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+case "$OMP_NUM_THREADS" in
+    ''|*[!0-9]*|'0') OMP_NUM_THREADS=1 ;;
+esac
 
 ITER_MODEL="${QWEN_ITER_MODEL:-qwen3.8-flash}"
 EXTRACTION_MODEL="${QWEN_EXTRACTION_MODEL:-qwen3.7-flash-2026-07-15}"
@@ -107,7 +112,14 @@ run_stage() {
         return 0
     fi
     echo "$(date --iso-8601=seconds) START $stage" >> "$RUN_DIR/pipeline.log"
-    "$@" >> "$RUN_DIR/$stage.stdout.log" 2>&1
+    if ! "$@" >> "$RUN_DIR/$stage.stdout.log" 2>&1; then
+        echo "$(date --iso-8601=seconds) STAGE_FAILED $stage" >> "$RUN_DIR/pipeline.log"
+        return 1
+    fi
+    if [[ ! -s "$expected_output" ]]; then
+        echo "$(date --iso-8601=seconds) STAGE_FAILED $stage (missing output: $expected_output)" >> "$RUN_DIR/pipeline.log"
+        return 1
+    fi
     touch "$RUN_DIR/$stage.done"
     echo "$(date --iso-8601=seconds) DONE $stage" >> "$RUN_DIR/pipeline.log"
 }

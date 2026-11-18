@@ -186,10 +186,24 @@ def main(args):
             if first is not None:
                 llm_reasoning_strs[grp_id] = first.reasoning
     
-    data_df["llm_output"].iloc[missing_idxs] = llm_output_strs
-    data_df["llm_reasoning"].iloc[missing_idxs] = llm_reasoning_strs
-    print("not na", (data_df.llm_output != "").sum())
+    out_col = data_df.columns.get_loc("llm_output")
+    reason_col = data_df.columns.get_loc("llm_reasoning")
+    for pos, out, reason in zip(missing_idxs, llm_output_strs, llm_reasoning_strs):
+        data_df.iat[pos, out_col] = out
+        data_df.iat[pos, reason_col] = reason
+    train_out = data_df.iloc[missing_idxs]["llm_output"].fillna("").astype(str).str.strip()
+    filled_train = int((train_out != "").sum())
+    need_train = len(missing_idxs)
+    print("not na", filled_train, "of", need_train, "train rows")
     data_df.to_csv(args.llm_outputs_file, index=False)
+    min_frac = float(os.getenv("BC_LLM_MIN_TRAIN_CONCEPT_FRAC", "0.9"))
+    if need_train > 0 and filled_train < max(1, int(min_frac * need_train)):
+        logging.error(
+            "Too few train concept extractions (%d/%d). Check initial_descriptors.log (billing, json_schema).",
+            filled_train,
+            need_train,
+        )
+        sys.exit(1)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
