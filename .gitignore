@@ -12,3 +12,4 @@ __pycache__/
 *.pyc
 .nested-git/
 .env.llm
+tmp_doc/pip_bc_llm_install.log
