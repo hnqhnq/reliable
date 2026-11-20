@@ -393,18 +393,31 @@ class ConceptLearnerModel:
         # logging.info("Candidate concept weights %s", candidate_concept_dicts)
 
         # randomly choose a new concept (gamma_b) based on its weight
-        selection_weights = np.array([concept_dict["forward_weight"] for concept_dict in candidate_concept_dicts])
-        selection_weights /= np.sum(selection_weights)
-        try:
-            new_concept_idx = np.random.choice(
-                    len(selection_weights), 
-                    size=1, 
-                    replace=False, 
-                    p=selection_weights
-                    )[0]
-        except Exception as e:
-            print(e)
-            breakpoint()
+        selection_weights = np.array(
+            [float(concept_dict.get("forward_weight", 0.0)) for concept_dict in candidate_concept_dicts],
+            dtype=np.float64,
+        )
+        weight_sum = np.nansum(selection_weights)
+        if not np.isfinite(weight_sum) or weight_sum <= 0:
+            logging.warning(
+                "Invalid forward_weight sum (%s) for %d candidates; using uniform proposal weights",
+                weight_sum,
+                len(candidate_concept_dicts),
+            )
+            selection_weights = np.full(len(candidate_concept_dicts), 1.0 / len(candidate_concept_dicts))
+        else:
+            selection_weights = selection_weights / weight_sum
+            selection_weights = np.nan_to_num(selection_weights, nan=0.0, posinf=0.0, neginf=0.0)
+            total = selection_weights.sum()
+            if total <= 0:
+                logging.warning("Normalized selection weights are all zero; using uniform proposal weights")
+                selection_weights = np.full(len(candidate_concept_dicts), 1.0 / len(candidate_concept_dicts))
+            else:
+                selection_weights /= total
+
+        new_concept_idx = int(
+            np.random.choice(len(selection_weights), size=1, replace=False, p=selection_weights)[0]
+        )
 
         new_concept = candidate_concept_dicts[new_concept_idx]
         logging.info("Selected new candidate concept %s (%sselection_weights)", new_concept, selection_weights)

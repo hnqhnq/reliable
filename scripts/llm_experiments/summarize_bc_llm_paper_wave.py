@@ -31,7 +31,11 @@ def load_task_list(path: Path) -> list[str]:
 def cache_rows(db_path: Path) -> int:
     if not db_path.is_file():
         return 0
-    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except duckdb.IOException:
+        # Another train_* process may hold the cache lock.
+        return -1
     try:
         return int(con.execute("SELECT COUNT(*) FROM llm_cache").fetchone()[0])
     except duckdb.CatalogException:
@@ -52,7 +56,8 @@ def main() -> int:
         task_dir = WAVE_ROOT / "tasks" / task
         status = (task_dir / "status.txt").read_text().strip() if (task_dir / "status.txt").is_file() else "—"
         calls = cache_rows(task_dir / "api_cache.duckdb")
-        total_calls += calls
+        if calls >= 0:
+            total_calls += calls
         acc = auc = None
         res = task_dir / "results.csv"
         if res.is_file():
@@ -142,8 +147,9 @@ def main() -> int:
     for _, r in df.sort_values("task").iterrows():
         acc_s = f"{r['acc']:.4f}" if r["acc"] is not None and r["acc"] == r["acc"] else "—"
         auc_s = f"{r['auc']:.4f}" if r["auc"] is not None and r["auc"] == r["auc"] else "—"
+        cache_s = "—" if r["cache_calls"] is None or r["cache_calls"] < 0 else str(int(r["cache_calls"]))
         lines.append(
-            f"| {r['task']} | {'yes' if r['wave_b'] else 'no'} | {r['status']} | {acc_s} | {auc_s} | {int(r['cache_calls'])} |"
+            f"| {r['task']} | {'yes' if r['wave_b'] else 'no'} | {r['status']} | {acc_s} | {auc_s} | {cache_s} |"
         )
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
