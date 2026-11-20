@@ -158,3 +158,19 @@ CLOUD_SSH='user@host' ./scripts/llm_experiments/sync_cub_paper_runs_to_cloud.sh
 ```
 
 任务列表：`bc_llm_paper_wave_b_tasks.txt`（10）、`bc_llm_paper_all_tasks.txt`（34）。
+
+## 9. 方向 2：Asia 接受得分 Pilot（创新阶段）
+
+在 BC-LLM 34/34 与 C²BM Asia 图补全闭合后，先验证 **方案 a**（神经 SCM 在留出集上的似然能否区分边方向），再实现完整 MH。
+
+设计稿：`report/20261120方向2-Asia-Pilot实验设计.md`（导师一页版 + 协议）。
+
+```bash
+cd /home/src/Reliable   # 或仓库根目录
+./scripts/llm_experiments/direction2_pilot_preflight.sh
+cat runs/direction2/asia_pilot_phase0/pilot_manifest.json
+# Phase 0 训练网格（实现中）：
+./scripts/llm_experiments/run_direction2_pilot_phase0.sh
+```
+
+依赖：`runs/c2bm/asia_predicted_shared_seed1/ges_cpdag.pkl`（与 Asia seed1 共用 CPDAG）。
