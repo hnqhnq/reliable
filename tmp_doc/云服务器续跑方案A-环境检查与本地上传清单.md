@@ -1,5 +1,7 @@
 # 云服务器续跑方案 A：环境检查与本地上传清单
 
+> **2026-11-20 更新**：方案 A **34/34 已完成**。本文档保留**上线前**环境与上传检查记录；验收与指标见 `report/20261118BC-LLM方案A云服务器续跑进度汇报.md`、`runs/bc-llm/cub_paper_qwen/wave_summary.md`。
+
 **检查时间**：2026-11-17（在云主机上执行自检）  
 **仓库路径（云）**：`/home/src/Reliable` → 实际目录 `/root/autodl-tmp/projects/reliable`  
 **Git**：`f328b20`（`main`，与 `origin/main` 一致）

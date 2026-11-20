@@ -141,15 +141,14 @@ tail -f runs/bc-llm/cub_paper_qwen/pipeline.log
 cat runs/bc-llm/cub_paper_qwen/wave_summary.md   # 结果 + 粗算花费
 ```
 
-补全方案 A（34 任务，**跳过已有 `results.csv` 的任务**；建议后台）：
+**方案 A（34 任务）**：已于 **2026-11-20** 跑完（`results.csv` **34/34**）。补跑单任务或重生成汇总：
 
 ```bash
-./scripts/llm_experiments/start_bc_llm_cub_paper_wave_a_remaining.sh
-tail -f runs/bc-llm/cub_paper_qwen/pipeline.log
+./scripts/llm_experiments/run_bc_llm_cub_paper_task.sh class_<...>
+.venvs/bc-llm/bin/python scripts/llm_experiments/summarize_bc_llm_paper_wave.py
 ```
 
-前台调试时可运行 `./scripts/llm_experiments/run_bc_llm_cub_paper_wave_a_remaining.sh`。
-云服务器迁移与 24 任务清单见 `report/20261022实验复现与后续研究设计.md` **§8**。
+若仍有未完成任务，可用 `./scripts/llm_experiments/start_bc_llm_cub_paper_wave_a_remaining.sh`（自动 SKIP 已有结果）。操作笔记见 `report/20261022实验复现与后续研究设计.md` **§8**；导师汇报见 `report/20261118BC-LLM方案A云服务器续跑进度汇报.md`。
 
 **`runs/` 不要进 Git**（体积大、DuckDB 缓存）。同步方案 B 产物到云：
 
