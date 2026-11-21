@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Phase 0: compare hold-out val_loss for correct vs reversed orientation per undirected edge.
-# Training loop hooks into Hydra main.py — implement split override next (see pilot design doc).
+# Run Direction 2 Phase 0 (oracle orientations, hold-out val_loss).
+#
+# Full grid (defaults from manifest, ~2 edges × 2 × 30 splits × short train):
+#   ./scripts/llm_experiments/run_direction2_pilot_phase0.sh
+#
+# Smoke (one edge, one split):
+#   PILOT_ONLY_EDGE=smoke--lung PILOT_N_SPLITS=1 PILOT_MAX_EPOCHS=40 \
+#     ./scripts/llm_experiments/run_direction2_pilot_phase0.sh
 
 set -Eeuo pipefail
 
@@ -9,22 +15,37 @@ if [[ -d /home/src/Reliable ]]; then
   ROOT_DIR="/home/src/Reliable"
 fi
 
-MANIFEST="$ROOT_DIR/runs/direction2/asia_pilot_phase0/pilot_manifest.json"
-DESIGN="$ROOT_DIR/report/20261120方向2-Asia-Pilot实验设计.md"
+PYTHON="$ROOT_DIR/.venvs/c2bm/bin/python"
+SCRIPT="$ROOT_DIR/scripts/llm_experiments/direction2_pilot_phase0.py"
+RUN_DIR="$ROOT_DIR/runs/direction2/asia_pilot_phase0"
+LOG="$RUN_DIR/phase0_pipeline.log"
 
-if [[ ! -f "$MANIFEST" ]]; then
-  echo "Run direction2_pilot_preflight.sh first." >&2
-  exit 1
+mkdir -p "$RUN_DIR"
+exec 9>"$RUN_DIR/phase0.lock"
+if ! flock -n 9; then
+  echo "Phase 0 already running (phase0.lock held)." >&2
+  exit 3
 fi
 
-echo "Direction 2 Phase 0 runner (scaffold)."
-echo "Design: $DESIGN"
-echo "Manifest: $MANIFEST"
-echo ""
-echo "Next implementation steps:"
-echo "  1. For each undirected edge in manifest, materialize graph_forward.pkl / graph_reverse.pkl"
-echo "  2. For split_id in 0..N-1, sample 50/50 indices; train C2BM on D_S only (max_epochs=80)"
-echo "  3. Evaluate val_loss on D_S^c; append rows to runs/direction2/asia_pilot_phase0/phase0_runs.csv"
-echo ""
-echo "Hyperparameter template: scripts/llm_experiments/run_c2bm_asia_api.sh (no completion.* LLM calls)"
-exit 2
+args=()
+[[ -n "${PILOT_ONLY_EDGE:-}" ]] && args+=(--only-edge "$PILOT_ONLY_EDGE")
+[[ -n "${PILOT_N_SPLITS:-}" ]] && args+=(--n-splits "$PILOT_N_SPLITS")
+[[ -n "${PILOT_MAX_EPOCHS:-}" ]] && args+=(--max-epochs "$PILOT_MAX_EPOCHS")
+[[ "${PILOT_DRY_RUN:-0}" == "1" ]] && args+=(--dry-run)
+
+export C2BM_CACHE="$ROOT_DIR/.cache/c2bm"
+export MPLCONFIGDIR="$ROOT_DIR/.cache/matplotlib"
+export HF_HOME="$ROOT_DIR/.cache/huggingface"
+export TORCH_HOME="$ROOT_DIR/.cache/torch"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+
+{
+  echo "===== phase0 start $(date --iso-8601=seconds) ====="
+  printf 'args:'
+  printf ' %q' "${args[@]}"
+  echo
+  "$PYTHON" "$SCRIPT" "${args[@]}"
+  ec=$?
+  echo "===== phase0 exit=$ec $(date --iso-8601=seconds) ====="
+  exit "$ec"
+} | tee -a "$LOG"

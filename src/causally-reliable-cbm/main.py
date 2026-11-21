@@ -173,8 +173,20 @@ def main(cfg: DictConfig) -> None:
         # ---- finetune the encoder (eventually)
         if cfg.dataset.loader.ftune_size > 0: 
             trainer, engine = finetune_model(cfg, engine, dataset)
+        export_path = cfg.get("pilot_export_val", None)
+        if export_path:
+            import json
+
+            metrics = {k: float(v) for k, v in trainer.callback_metrics.items() if v is not None}
+            export_path = os.path.abspath(export_path)
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            with open(export_path, "w", encoding="utf-8") as export_file:
+                json.dump(metrics, export_file, indent=2)
+            print(f"Wrote pilot val metrics: {export_path}")
+
         # ----- test
-        trainer.test(engine, test_dataloader, ckpt_path='best')
+        if not cfg.get("pilot_skip_test", False):
+            trainer.test(engine, test_dataloader, ckpt_path="best")
         trainer.logger.finalize("success")
     finally:
         if trainer is not None and isinstance(trainer.logger, WandbLogger):

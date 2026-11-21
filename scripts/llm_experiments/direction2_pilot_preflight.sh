@@ -48,6 +48,12 @@ LOG="$LOG_DIR/preflight.log"
     echo "WARN: nvidia-smi not found"
   fi
 
+  if command -v dot >/dev/null 2>&1; then
+    echo "OK: graphviz (dot) for C2BM plots"
+  else
+    echo "WARN: missing graphviz — install: apt-get install -y graphviz"
+  fi
+
   for seed1 in qwen deepseek; do
     g="$ROOT_DIR/runs/c2bm/asia_predicted_${seed1}_seed1/completed_graph.pkl"
     if [[ -f "$g" ]]; then

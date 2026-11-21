@@ -11,6 +11,12 @@
 #   upload_bc_llm_venv.tar.gz          -> .venvs/
 #   upload_CUB_200_2011.zip            -> src/.../data/ (top dir CUB_200_2011/)
 #   upload_CUB_200_2011.tar.gz         -> src/.../data/
+#   upload_c2bm_venv.tar.gz            -> .venvs/      (top dir c2bm/)
+#   upload_c2bm_runs.tar.gz            -> runs/        (top dir c2bm/)
+#   upload_cache_c2bm.tar.gz           -> .cache/      (top dir c2bm/)
+#
+# STAGING_DIR may point at a subfolder, e.g.:
+#   STAGING_DIR=/root/autodl-tmp/projects/reliable/tmp_doc/20261020-tar ./scripts/.../unpack_staging_from_tmp_doc.sh
 #
 # Usage:
 #   ./scripts/llm_experiments/unpack_staging_from_tmp_doc.sh
@@ -107,6 +113,31 @@ for name in upload_CUB_200_2011.zip CUB_200_2011.zip; do
         did_any=1
     fi
 done
+
+# --- C2BM direction-2 pilot ---
+for f in "$STAGING"/upload_c2bm_venv.tar.gz; do
+    if [[ -f "$f" ]]; then
+        echo "Unpack c2bm venv (tar): $f"
+        extract_tar_to "$f" "$ROOT_DIR/.venvs"
+        did_any=1
+    fi
+done
+
+for f in "$STAGING"/upload_c2bm_runs.tar.gz; do
+    if [[ -f "$f" ]]; then
+        echo "Unpack c2bm runs (tar): $f"
+        extract_tar_to "$f" "$ROOT_DIR/runs"
+        did_any=1
+    fi
+done
+
+for f in "$STAGING"/upload_cache_c2bm.tar.gz; do
+    if [[ -f "$f" ]]; then
+        echo "Unpack c2bm cache (tar): $f"
+        extract_tar_to "$f" "$ROOT_DIR/.cache"
+        did_any=1
+    fi
+done
 shopt -u nullglob
 
 if [[ "$did_any" == 0 ]]; then
@@ -124,6 +155,9 @@ if [[ "$DRY_RUN" == 0 ]]; then
     [[ -f "$ds/attributes.txt" ]] && echo "CUB attributes: OK" || echo "CUB attributes: still missing"
     [[ -d "$ds/CUB_200_2011/images" ]] && echo "CUB images: OK" || echo "CUB images: still missing"
     [[ -x "$ROOT_DIR/.venvs/bc-llm/bin/python" ]] && echo "bc-llm venv: OK" || echo "bc-llm venv: still missing"
+    [[ -x "$ROOT_DIR/.venvs/c2bm/bin/python" ]] && echo "c2bm venv: OK" || echo "c2bm venv: still missing"
+    [[ -f "$ROOT_DIR/runs/c2bm/asia_predicted_shared_seed1/ges_cpdag.pkl" ]] && \
+        echo "ges_cpdag.pkl: OK" || echo "ges_cpdag.pkl: still missing"
     if [[ -x "$ROOT_DIR/scripts/llm_experiments/check_cub_paper_runs_ready.sh" ]]; then
         bash "$ROOT_DIR/scripts/llm_experiments/check_cub_paper_runs_ready.sh" || true
     fi

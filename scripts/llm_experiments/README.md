@@ -169,8 +169,11 @@ CLOUD_SSH='user@host' ./scripts/llm_experiments/sync_cub_paper_runs_to_cloud.sh
 cd /home/src/Reliable   # 或仓库根目录
 ./scripts/llm_experiments/direction2_pilot_preflight.sh
 cat runs/direction2/asia_pilot_phase0/pilot_manifest.json
-# Phase 0 训练网格（实现中）：
+# Phase 0 全网格（约 120 次短训，无 API）：
 ./scripts/llm_experiments/run_direction2_pilot_phase0.sh
+
+# 冒烟：PILOT_ONLY_EDGE=smoke--lung PILOT_N_SPLITS=1 ./scripts/llm_experiments/run_direction2_pilot_phase0.sh
 ```
 
-依赖：`runs/c2bm/asia_predicted_shared_seed1/ges_cpdag.pkl`（与 Asia seed1 共用 CPDAG）。
+**Phase 0 结果（2026-11-20）**：方案 a **未通过**，见 `report/20261121方向2-Asia-Pilot-Phase0结论.md`。  
+依赖：`runs/c2bm/asia_predicted_shared_seed1/ges_cpdag.pkl`；`tmp_doc` 可 `STAGING_DIR=.../20261020-tar ./scripts/llm_experiments/unpack_staging_from_tmp_doc.sh` 解压 c2bm 资产。
